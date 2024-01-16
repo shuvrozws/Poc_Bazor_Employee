@@ -1,0 +1,271 @@
+﻿@page "/"
+@using Poc.Application.Interfaces
+@using Poc.Core.Entities
+@using Poc.Core.Shared
+@inject IJSRuntime JSRuntime
+@inject IEmployeeRepository employeeRepository
+@inject IDepartmentRepository departmentRepository
+@using System.Linq;
+
+
+<button class="btn btn-primary" @onclick="@(()=>AddEmployee("employeeModal"))">Add New Record</button>
+<button class="btn btn-primary" @onclick="@(()=>ShowModal("selectEmployeeForDepartment"))">Show Selected Records</button>
+
+@* employee add update modal *@
+<div id="employeeModal" class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <EditForm Model="Employee" OnValidSubmit="@SubmitForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Employee</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close" @onclick="@(()=>HideModal("employeeModal"))">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label for="inputName">Name:</label>
+                        <InputText type="text" class="form-control" id="inputName" @bind-Value="Employee.Name" placeholder="Enter Name"></InputText>
+                        <ValidationMessage For="@(() => Employee.Name)" />
+
+                    </div>
+                    <div class="form-group">
+                        <label for="department">DOB:</label>
+                        <InputDate class="form-control" id="inputDob" @bind-Value="Employee.DateOfBirth" max=@DateTime.Today.ToString("yyyy'-'MM'-'dd") placeholder="Enter DOB"></InputDate>
+                        <ValidationMessage For="@(() => Employee.DateOfBirth)" />
+                    </div>
+                    <div class="form-group">
+                        <label for="department">Department:</label>
+                        <InputSelect class="form-select" @bind-Value="Employee.DepartmentId">
+                            <option value="0">--select department--</option>
+                            @if (Departments is not null)
+                            {
+                                foreach (var dep in Departments)
+                                {
+                                    <option value="@dep.Id">@dep.Name</option>
+                                }
+
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => Employee.DepartmentId)" />
+
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal" @onclick="@(()=>HideModal("employeeModal"))">Close</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+<div id="selectEmployeeForDepartment" class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Selected Records</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" @onclick="@(()=>HideModal("selectEmployeeForDepartment"))">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                @if (EmployeeDatawithDepartment is not null && EmployeeDatawithDepartment.Count > 0)
+                {
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+
+                                <th scope="col">Name</th>
+                                <th scope="col">Department</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            @foreach (var emp in EmployeeDatawithDepartment)
+                            {
+                                <tr>
+                                    <td>@emp.Name</td>
+                                    <td>@emp.DepartmentName</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <h5>There are no records.</h5>
+                }
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div id="deleteConfirmationModal" class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Employee</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" @onclick="@(()=>HideModal("deleteConfirmationModal"))">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5>Are you sure you want to delete data for @EmployeeNameForDelete? </h5>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-dismiss="modal" @onclick="ConfirmDelete">Yes</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" @onclick="@(()=>HideModal("deleteConfirmationModal"))">No</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* list of employee data *@
+<table class="table table-striped">
+
+    <thead>
+        <tr>
+            <th></th>
+            <th scope="col">Name</th>
+            <th scope="col">Department</th>
+            <th scope="col">DOB</th>
+            <th scope="col">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (EmployeeData is not null)
+        {
+            foreach (var employee in EmployeeData)
+            {
+                <tr>
+                    <td>
+                        <input type="checkbox" @onchange="args=>CheckEmployeeDetails(args, employee)" />
+                    </td>
+                    <td>@employee.Name</td>
+                    <td>@employee.DepartmentName</td>
+                    <td>@employee.DateOfBirth?.ToString("dd/MM/yyyy")</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="() => EditEmployee(employee)">Edit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteEmployee(employee.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+
+        }
+
+
+    </tbody>
+</table>
+
+
+@code {
+    private List<Employee> EmployeeData;
+    private List<Employee> EmployeeDatawithDepartment = new();
+    private List<Department> Departments;
+
+    public Employee Employee { get; set; }
+    public string EmployeeNameForDelete { get; set; }
+    public int EmployeeIdForDelete { get; set; }
+
+
+    protected override async void OnInitialized()
+    {
+        await GetEmployeeList();
+        var DepData = await departmentRepository.GetDepartments();
+
+        if (DepData.IsSuccess)
+        {
+            Departments = (List<Department>)DepData.Data;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    #region GetEmployeeDetails
+    private async Task GetEmployeeList()
+    {
+        Employee = new();
+        var result = await employeeRepository.GetEmployees();
+        if (result.IsSuccess)
+        {
+            EmployeeData = (List<Employee>)result.Data;
+        }
+    }
+    private async Task CheckEmployeeDetails(ChangeEventArgs args, Employee item)
+    {
+        bool IsSelected = (bool)args.Value;
+        if (IsSelected) EmployeeDatawithDepartment.Add(item);
+        else EmployeeDatawithDepartment.Remove(item);
+    }
+    #endregion
+
+    #region AddUpdateEmployeeDetails
+    private void AddEmployee(string modalPopupName)
+    {
+        Employee = new();
+        ShowModal(modalPopupName);
+    }
+
+    private async Task SubmitForm()
+    {
+        if (Employee != null)
+        {
+            if (Employee.Id > 0)
+            {
+                await employeeRepository.UpdateAsync(Employee);
+            }
+
+            else
+            {
+                await employeeRepository.InsertAsync(Employee);
+            }
+            await GetEmployeeList();
+        }
+
+        await InvokeAsync(StateHasChanged);
+        HideModal("employeeModal");
+    }
+
+    private async Task EditEmployee(Employee editEmployee)
+    {
+        Employee = editEmployee;
+        ShowModal("employeeModal");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DeleteEmployee(int id)
+    {
+        EmployeeIdForDelete = id;
+        EmployeeNameForDelete = EmployeeData.FirstOrDefault(x => x.Id == id).Name;
+        ShowModal("deleteConfirmationModal");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmDelete()
+    {
+        var empt = await employeeRepository.DeleteAsync(EmployeeIdForDelete);
+        EmployeeData = EmployeeData.Where(x => x.Id != EmployeeIdForDelete).ToList();
+    }
+    #endregion
+
+    #region showHidePopupModals
+    private void ShowModal(string modalPopupName)
+    {
+        JSRuntime.InvokeVoidAsync("showModal", modalPopupName);
+    }
+
+    private void HideModal(string modalPopupName)
+    {
+        JSRuntime.InvokeVoidAsync("hideModal", modalPopupName);
+    }
+
+    private void HidedeleteConfirmationModal()
+    {
+        JSRuntime.InvokeVoidAsync("hideModal", "deleteConfirmationModal");
+    }
+    #endregion
+}
